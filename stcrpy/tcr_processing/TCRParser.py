@@ -8,12 +8,14 @@ TCRParser object which is based on ABDB's AntibodyParser and BioPython's PDB par
 from itertools import combinations, product
 import sys
 import os
+import tempfile
 from collections import defaultdict
 import warnings
 
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB import NeighborSearch
+from Bio.PDB import PDBIO
 
 # TCRDB
 from .annotate import annotate, extract_sequence, align_numbering
@@ -57,6 +59,10 @@ class TCRParser(PDBParser, MMCIFParser):
         # Choose the numbering scheme and CDR definition, though by default we'll use the IMGT schemes. Have these down for reference use.
         self.numbering_scheme = "imgt"
         self.definition = "imgt"
+
+        self.current_file = (
+            None  # the current file being processed, populated by get_tcr_structure
+        )
 
     def _create_chain(self, chain, new_chain_id, numbering, chain_type):
         """
@@ -194,19 +200,62 @@ class TCRParser(PDBParser, MMCIFParser):
 
         return newchain1, newchain2
 
-    def get_tcr_structure(
-        self, id, file, prenumbering=None, ali_dict={}, crystal_contacts=[]
-    ):
-        """
-        Post processing of the TCRPDB.Bio.PDB structure object into a TCR context.
+    def _number_and_annotate_chain(self, chain, prenumbering=None, ali_dict={}):
+        # try to number the sequence found in the structure
+        if prenumbering and chain.id in prenumbering:
+            if len(prenumbering[chain.id]) == 2:
+                numbering = [{}, {}]
+                region_types = ["", ""]
 
-        id: a string to identify the structure
-        file: the path to the .pdb file
+                numbering[0], region_types[0] = self._prenumbered(
+                    chain, prenumbering, ali_dict, n=0
+                )
+                numbering[1], region_types[1] = self._prenumbered(
+                    chain, prenumbering, ali_dict, n=1
+                )
+                rtypes = sorted(region_types)
 
-        optional:
-            prenumbering: prenumbering for the chains in the structure.
-        """
-        self.warnings = ErrorStream()
+                # Check that we have a beta/alpha domain or gamma/delta domain
+                if rtypes == ["A", "B"] or rtypes == ["D", "G"]:
+                    chain_type = "".join(region_types)
+                    scTCR = True
+                # if not, just take the first region and warn the user
+                else:
+                    chain_type = region_types[0]
+                    numbering = numbering[0]
+                    scTCR = False
+                    print(
+                        "Warning multiple variable regions of the same type (%s) found on chain %s.\nTaking the first variable region only."
+                        % (chain_type, chain.id),
+                        file=self.warnings,
+                    )
+
+            elif prenumbering[chain.id][0][-1] not in ["B", "A", "D", "G"]:
+                numbering, chain_type, scTCR = annotate(chain)
+
+            else:
+                numbering, chain_type = self._prenumbered(
+                    chain, prenumbering, ali_dict, n=0
+                )
+                scTCR = False
+
+        else:
+            numbering, chain_type, germline_info, scTCR = annotate(chain)
+
+        return numbering, chain_type, germline_info, scTCR
+
+    def _get_header_info(self, tcrstructure, chain, germline_info):
+        if chain.id in tcrstructure.header["chain_details"]:  # clean this up!!!
+            engineered = tcrstructure.header["chain_details"][chain.id]["engineered"]
+            details = tcrstructure.header["chain_details"][chain.id]
+        else:
+            engineered = False
+            details = {"molecule": "unknown", "engineered": False}
+
+        details["genetic_origin"] = germline_info
+        return details, engineered
+
+    def _read_structure_file(self, file, id):
         # get a structure object from biopython.
         _, ext = os.path.splitext(file)
         if ext.lower() == ".pdb":
@@ -225,6 +274,45 @@ class TCRParser(PDBParser, MMCIFParser):
         # Set and analyse header information
         tcrstructure.set_header(structure.header)
         self._analyse_header(tcrstructure)
+        return structure, tcrstructure
+
+    def _initialise_model(self, model):
+        newmodel = Model(model.id)
+
+        # initialise holder objects for holding TCR, MHC and non-TCR/non-MHC (antigen) chains.
+        agchains = Holder("Antigen")
+        trchains = Holder("TCRchain")
+        mhchains = Holder("MHCchain")
+        newmodel.add(agchains)
+        newmodel.add(trchains)
+        newmodel.add(mhchains)
+        return newmodel, agchains, trchains, mhchains
+
+    def get_tcr_structure(
+        self,
+        id,
+        file,
+        prenumbering=None,
+        ali_dict={},
+        crystal_contacts=[],
+        include_symmetry_mates=True,
+    ):
+        """
+        Post processing of the TCRPDB.Bio.PDB structure object into a TCR context.
+
+        id: a string to identify the structure
+        file: the path to the .pdb file
+
+        optional:
+            prenumbering: prenumbering for the chains in the structure.
+        """
+        self.warnings = ErrorStream()
+        self.include_symmetry_mates = include_symmetry_mates
+        self.current_file = file
+
+        structure, tcrstructure = self._read_structure_file(
+            file, id
+        )  # structure: Bio.PDB.Structure from file; tcrstructure: initialised empty TCRStructure object to be populated
 
         # iterate over the models in the structure
         # iterate backwards through the model list - delete old structure as we go
@@ -233,70 +321,18 @@ class TCRParser(PDBParser, MMCIFParser):
         for mid in range(len(structure.child_list) - 1, -1, -1):
             # add a model to the TCR structure
             model = structure.child_list[mid]
-            newmodel = Model(model.id)
+            newmodel, agchains, trchains, mhchains = self._initialise_model(model)
             tcrstructure.add(newmodel)
-
-            # initialise holder objects for holding TCR, MHC and non-TCR/non-MHC (antigen) chains.
-            agchains = Holder("Antigen")
-            trchains = Holder("TCRchain")
-            mhchains = Holder("MHCchain")
-            newmodel.add(agchains)
-            newmodel.add(trchains)
-            newmodel.add(mhchains)
 
             # iterate over the chains in the model
             for chain in model.get_list():
-                # try to number the sequence found in the structure
-                if prenumbering and chain.id in prenumbering:
-                    if len(prenumbering[chain.id]) == 2:
-                        numbering = [{}, {}]
-                        region_types = ["", ""]
+                numbering, chain_type, germline_info, scTCR = (
+                    self._number_and_annotate_chain(chain, prenumbering, ali_dict)
+                )
 
-                        numbering[0], region_types[0] = self._prenumbered(
-                            chain, prenumbering, ali_dict, n=0
-                        )
-                        numbering[1], region_types[1] = self._prenumbered(
-                            chain, prenumbering, ali_dict, n=1
-                        )
-                        rtypes = sorted(region_types)
-
-                        # Check that we have a beta/alpha domain or gamma/delta domain
-                        if rtypes == ["A", "B"] or rtypes == ["D", "G"]:
-                            chain_type = "".join(region_types)
-                            scTCR = True
-                        # if not, just take the first region and warn the user
-                        else:
-                            chain_type = region_types[0]
-                            numbering = numbering[0]
-                            scTCR = False
-                            print(
-                                "Warning multiple variable regions of the same type (%s) found on chain %s.\nTaking the first variable region only."
-                                % (chain_type, chain.id),
-                                file=self.warnings,
-                            )
-
-                    elif prenumbering[chain.id][0][-1] not in ["B", "A", "D", "G"]:
-                        numbering, chain_type, scTCR = annotate(chain)
-
-                    else:
-                        numbering, chain_type = self._prenumbered(
-                            chain, prenumbering, ali_dict, n=0
-                        )
-                        scTCR = False
-
-                else:
-                    numbering, chain_type, germline_info, scTCR = annotate(chain)
-
-                if chain.id in tcrstructure.header["chain_details"]:  # clean this up!!!
-                    engineered = tcrstructure.header["chain_details"][chain.id][
-                        "engineered"
-                    ]
-                    details = tcrstructure.header["chain_details"][chain.id]
-                else:
-                    engineered = False
-                    details = {"molecule": "unknown", "engineered": False}
-
-                details["genetic_origin"] = germline_info
+                details, engineered = self._get_header_info(
+                    tcrstructure, chain, germline_info
+                )
 
                 if numbering and chain_type in ["G", "D", "B", "A"]:
                     # create a new TCR chain
@@ -350,7 +386,9 @@ class TCRParser(PDBParser, MMCIFParser):
                         elif not obs_chaintypes - set(["G", "D"]):
                             tcr = gdTCR(chain1, chain2)
                         elif not obs_chaintypes - set(["B", "D"]):
-                            tcr = abTCR(chain1, chain2)         # initial way to deal with narci missclassification of alpha chains as delta chains
+                            tcr = abTCR(
+                                chain1, chain2
+                            )  # initial way to deal with anarci missclassification of alpha chains as delta chains
                             # tcr = dbTCR(chain1, chain2)
 
                         tcr.scTCR = True  #
@@ -503,6 +541,7 @@ class TCRParser(PDBParser, MMCIFParser):
             sys.stderr.write("\n")
         tcrstructure.warnings = self.warnings
 
+        self.current_file = None  # reset the current file
         return tcrstructure
 
     def _analyse_header(self, header):
@@ -787,19 +826,120 @@ class TCRParser(PDBParser, MMCIFParser):
 
         return hetatoms, sugars
 
-    def _match_units(self, model, trchains, mhchains, agchains, crystal_contacts=[]):
-        """
-        Match MHC+Peptide chains to TCR chains.
-        model is the current model - extract the TCRs from it (paired chains have been removed)
-        trchains contains those TCR chains that have been unable to be paired to form TCRs
-        agchains contains non-TCR chains that are potential antigens.
+    def _prepare_tcr(self, tr, cdr_atoms, antigen_hetatoms, antigen_sugars):
+        for cdr in tr.get_CDRs():
+            # Only get CDR3?
+            if "3" not in cdr.id:
+                continue
+            # only look at CA or CB atoms of the CDR; this is used later.
+            cdr_atoms[tr.id] += [
+                atom for atom in cdr.get_atoms() if atom.id == "CB" or atom.id == "CA"
+            ]
 
-        Goal: Match TCR <-> MHC + peptide antigen.
-        """
-        # Get all T-cell receptor-like objects (TCR, TCRchain), and MHC-like objects.
-        tcell_receptors = [h for h in model if isinstance(h, TCR)] + trchains.child_list
-        mhc_complexes = [h for h in model if isinstance(h, MHC)] + mhchains.child_list
+        # get TCR type and get chain's hetatoms accordingly
+        if isinstance(tr, TCR) and tr.get_TCR_type() == "abTCR":
+            beta_chain = tr.get_VB()
+            alpha_chain = tr.get_VA()
 
+            antigen_hetatoms[tr.VB], antigen_sugars[tr.VB] = self._find_chain_hetatoms(
+                beta_chain
+            )
+            antigen_hetatoms[tr.VA], antigen_sugars[tr.VA] = self._find_chain_hetatoms(
+                alpha_chain
+            )
+
+        elif isinstance(tr, TCR) and tr.get_TCR_type() == "gdTCR":
+            delta_chain = tr.get_VD()
+            gamma_chain = tr.get_VG()
+            antigen_hetatoms[tr.VD], antigen_sugars[tr.VD] = self._find_chain_hetatoms(
+                delta_chain
+            )
+            antigen_hetatoms[tr.VG], antigen_sugars[tr.VG] = self._find_chain_hetatoms(
+                gamma_chain
+            )
+
+        elif isinstance(tr, TCR) and tr.get_TCR_type() == "dbTCR":
+            beta_chain = tr.get_VB()
+            delta_chain = tr.get_VD()
+            antigen_hetatoms[tr.VB], antigen_sugars[tr.VB] = self._find_chain_hetatoms(
+                beta_chain
+            )
+            antigen_hetatoms[tr.VD], antigen_sugars[tr.VD] = self._find_chain_hetatoms(
+                delta_chain
+            )
+
+        # Unpaired TCR chain
+        elif isinstance(tr, TCRchain):
+            antigen_hetatoms[tr.id], antigen_sugars[tr.id] = self._find_chain_hetatoms(
+                tr
+            )
+
+    def _prepare_mhc(self, mh, mh_atoms, antigen_hetatoms, antigen_sugars):
+        # Keep G domain atoms; Get the Helix region of MHC
+        mh_atoms[mh.id] = [
+            atom
+            for atom in mh.get_atoms()
+            if (atom.id == "CB" or atom.id == "CA") and atom.region == "Helix"
+        ]
+        if isinstance(mh, MHC) and mh.MHC_type == "MH1":
+            MH1, B2M = mh.get_MH1(), mh.get_B2M()
+            if MH1 is not None:
+                antigen_hetatoms[mh.MH1], antigen_sugars[mh.MH1] = (
+                    self._find_chain_hetatoms(MH1)
+                )
+            else:
+                GA1 = mh.get_GA1()
+                antigen_hetatoms[mh.GA1], antigen_sugars[mh.GA1] = (
+                    self._find_chain_hetatoms(GA1)
+                )
+            if B2M is not None:  # handle single chain MH1 case
+                antigen_hetatoms[mh.B2M], antigen_sugars[mh.B2M] = (
+                    self._find_chain_hetatoms(B2M)
+                )
+
+        elif isinstance(mh, MHC) and mh.MHC_type == "CD1":
+            CD1, B2M = mh.get_CD1(), mh.get_B2M()
+            if CD1 is not None:
+                antigen_hetatoms[mh.CD1], antigen_sugars[mh.CD1] = (
+                    self._find_chain_hetatoms(CD1)
+                )
+            if B2M is not None:
+                antigen_hetatoms[mh.B2M], antigen_sugars[mh.B2M] = (
+                    self._find_chain_hetatoms(B2M)
+                )
+
+        elif isinstance(mh, MHC) and mh.MHC_type == "MR1":
+            MR1, B2M = mh.get_MR1(), mh.get_B2M()
+            antigen_hetatoms[mh.MR1], antigen_sugars[mh.MR1] = (
+                self._find_chain_hetatoms(MR1)
+            )
+            antigen_hetatoms[mh.B2M], antigen_sugars[mh.B2M] = (
+                self._find_chain_hetatoms(B2M)
+            )
+
+        elif isinstance(mh, MHC) and mh.MHC_type == "MH2":
+            GA, GB = mh.get_GA(), mh.get_GB()
+            antigen_hetatoms[mh.GA], antigen_sugars[mh.GA] = self._find_chain_hetatoms(
+                GA
+            )
+            antigen_hetatoms[mh.GB], antigen_sugars[mh.GB] = self._find_chain_hetatoms(
+                GB
+            )
+
+        # Unpaired MHC chains -- if any, go here.
+        elif isinstance(mh, MHCchain):
+            antigen_hetatoms[mh.id], antigen_sugars[mh.id] = self._find_chain_hetatoms(
+                mh
+            )
+
+    def _prepare_tcrs_mhcs_and_antigens_for_pairing(
+        self,
+        model,
+        tcell_receptors,
+        mhc_complexes,
+        agchains,
+        crystal_contacts,
+    ):
         # Initialise 5 dictionaries which carries a list of atoms per chain ID.
         antigen_atoms, cdr_atoms, mh_atoms, antigen_hetatoms, antigen_sugars = (
             defaultdict(list),
@@ -811,113 +951,11 @@ class TCRParser(PDBParser, MMCIFParser):
 
         # Look through TCR and MHC and see if there are any weird hetatoms and sugars in the structure.
         for tr in tcell_receptors:
-            for cdr in tr.get_CDRs():
-                # Only get CDR3?
-                if "3" not in cdr.id:
-                    continue
-                # only look at CA or CB atoms of the CDR; this is used later.
-                cdr_atoms[tr.id] += [
-                    atom
-                    for atom in cdr.get_atoms()
-                    if atom.id == "CB" or atom.id == "CA"
-                ]
-
-            # get TCR type and get chain's hetatoms accordingly
-            if isinstance(tr, TCR) and tr.get_TCR_type() == "abTCR":
-                beta_chain = tr.get_VB()
-                alpha_chain = tr.get_VA()
-
-                antigen_hetatoms[tr.VB], antigen_sugars[tr.VB] = (
-                    self._find_chain_hetatoms(beta_chain)
-                )
-                antigen_hetatoms[tr.VA], antigen_sugars[tr.VA] = (
-                    self._find_chain_hetatoms(alpha_chain)
-                )
-
-            elif isinstance(tr, TCR) and tr.get_TCR_type() == "gdTCR":
-                delta_chain = tr.get_VD()
-                gamma_chain = tr.get_VG()
-                antigen_hetatoms[tr.VD], antigen_sugars[tr.VD] = (
-                    self._find_chain_hetatoms(delta_chain)
-                )
-                antigen_hetatoms[tr.VG], antigen_sugars[tr.VG] = (
-                    self._find_chain_hetatoms(gamma_chain)
-                )
-
-            elif isinstance(tr, TCR) and tr.get_TCR_type() == "dbTCR":
-                beta_chain = tr.get_VB()
-                delta_chain = tr.get_VD()
-                antigen_hetatoms[tr.VB], antigen_sugars[tr.VB] = (
-                    self._find_chain_hetatoms(beta_chain)
-                )
-                antigen_hetatoms[tr.VD], antigen_sugars[tr.VD] = (
-                    self._find_chain_hetatoms(delta_chain)
-                )
-
-            # Unpaired TCR chain
-            elif isinstance(tr, TCRchain):
-                antigen_hetatoms[tr.id], antigen_sugars[tr.id] = (
-                    self._find_chain_hetatoms(tr)
-                )
+            self._prepare_tcr(tr, cdr_atoms, antigen_hetatoms, antigen_sugars)
 
         # Do the same for MHC.
         for mh in mhc_complexes:
-            # Keep G domain atoms; Get the Helix region of MHC
-            mh_atoms[mh.id] = [
-                atom
-                for atom in mh.get_atoms()
-                if (atom.id == "CB" or atom.id == "CA") and atom.region == "Helix"
-            ]
-            if isinstance(mh, MHC) and mh.MHC_type == "MH1":
-                MH1, B2M = mh.get_MH1(), mh.get_B2M()
-                if MH1 is not None:
-                    antigen_hetatoms[mh.MH1], antigen_sugars[mh.MH1] = (
-                        self._find_chain_hetatoms(MH1)
-                    )
-                else:
-                    GA1 = mh.get_GA1()
-                    antigen_hetatoms[mh.GA1], antigen_sugars[mh.GA1] = (
-                        self._find_chain_hetatoms(GA1)
-                    )
-                if B2M is not None:         # handle single chain MH1 case
-                    antigen_hetatoms[mh.B2M], antigen_sugars[mh.B2M] = (
-                        self._find_chain_hetatoms(B2M)
-                    )
-
-            elif isinstance(mh, MHC) and mh.MHC_type == "CD1":
-                CD1, B2M = mh.get_CD1(), mh.get_B2M()
-                if CD1 is not None:
-                    antigen_hetatoms[mh.CD1], antigen_sugars[mh.CD1] = (
-                        self._find_chain_hetatoms(CD1)
-                    )
-                if B2M is not None:
-                    antigen_hetatoms[mh.B2M], antigen_sugars[mh.B2M] = (
-                        self._find_chain_hetatoms(B2M)
-                    )
-
-            elif isinstance(mh, MHC) and mh.MHC_type == "MR1":
-                MR1, B2M = mh.get_MR1(), mh.get_B2M()
-                antigen_hetatoms[mh.MR1], antigen_sugars[mh.MR1] = (
-                    self._find_chain_hetatoms(MR1)
-                )
-                antigen_hetatoms[mh.B2M], antigen_sugars[mh.B2M] = (
-                    self._find_chain_hetatoms(B2M)
-                )
-
-            elif isinstance(mh, MHC) and mh.MHC_type == "MH2":
-                GA, GB = mh.get_GA(), mh.get_GB()
-                antigen_hetatoms[mh.GA], antigen_sugars[mh.GA] = (
-                    self._find_chain_hetatoms(GA)
-                )
-                antigen_hetatoms[mh.GB], antigen_sugars[mh.GB] = (
-                    self._find_chain_hetatoms(GB)
-                )
-
-            # Unpaired MHC chains -- if any, go here.
-            elif isinstance(mh, MHCchain):
-                antigen_hetatoms[mh.id], antigen_sugars[mh.id] = (
-                    self._find_chain_hetatoms(mh)
-                )
+            self._prepare_mhc(mh, mh_atoms, antigen_hetatoms, antigen_sugars)
 
         for antigen in agchains:
             antigen_atoms[antigen.id] = [
@@ -963,7 +1001,18 @@ class TCRParser(PDBParser, MMCIFParser):
 
         # If a TCR does not have a detected MHC chain, then skip the remaining MHC-specific parsing bits.
         if not mhc_complexes:
-            return
+            return (
+                model,
+                tcell_receptors,
+                mhc_complexes,
+                agchains,
+                crystal_contacts,
+                antigen_atoms,
+                cdr_atoms,
+                mh_atoms,
+                antigen_hetatoms,
+                antigen_sugars,
+            )
 
         # Have a very tight cutoff for MHCs that present het atoms (e.g. CD1 types)
         self._het_sugar_pass(
@@ -979,14 +1028,36 @@ class TCRParser(PDBParser, MMCIFParser):
             self._protein_peptide_pass(
                 model, mhc_complexes, mh_atoms, antigen_atoms, crystal_contacts
             )
+        return (
+            model,
+            tcell_receptors,
+            mhc_complexes,
+            agchains,
+            crystal_contacts,
+            antigen_atoms,
+            cdr_atoms,
+            mh_atoms,
+            antigen_hetatoms,
+            antigen_sugars,
+        )
 
+    def _pair_tcr_and_mhc(
+        self,
+        model,
+        tcell_receptors,
+        mhc_complexes,
+        cdr_atoms,
+        mh_atoms,
+        crystal_contacts,
+        already_paired_tr_mh=set(),
+    ):
         # Pair a TCR with an MHC and vice-versa; go through all possible combinations of TCR/MHC
         # We see if a CB/CA atom of the helix region of an MHC is within 8A of a TCR CDR loop's CB/CA atoms.
         # This is similar to the _protein_peptide_pass algorithm; we find the number of contacts between MHC and TCR,
         # and use the MHC with highest no. of contacts
         contact_freq = defaultdict(int)
-        tr_mh_pairs = list(product(tcell_receptors, mhc_complexes))
 
+        tr_mh_pairs = list(product(tcell_receptors, mhc_complexes))
         for tr, mh in tr_mh_pairs:
             ns = NeighborSearch(cdr_atoms[tr.id])
             for atom in mh_atoms[mh.id]:
@@ -999,15 +1070,103 @@ class TCRParser(PDBParser, MMCIFParser):
         sorted_contacts = sorted(
             list(contact_freq.items()), key=lambda z: z[1], reverse=True
         )
-        paired_tr_mh = set()
+        paired_tr_mh = set() if not already_paired_tr_mh else already_paired_tr_mh
         for pair, contacts in sorted_contacts:
             tr, mh = pair
             # If the TCR has already been paired, or if we know that the TCR and MHC are forming crystal contacts, move on.
             if tr in paired_tr_mh or (tr, mh) in crystal_contacts:
                 continue
+            if mh not in model:
+                model.add([mhc for mhc in mhc_complexes if mhc.id == mh][0])
             model[tr]._add_mhc(model[mh])
             model[mh]._add_tcr(model[tr])
             paired_tr_mh.add(tr)
+        return model, paired_tr_mh
+
+    def _match_units(self, model, trchains, mhchains, agchains, crystal_contacts=[]):
+        """
+        Match MHC+Peptide chains to TCR chains.
+        model is the current model - extract the TCRs from it (paired chains have been removed)
+        trchains contains those TCR chains that have been unable to be paired to form TCRs
+        agchains contains non-TCR chains that are potential antigens.
+
+        Goal: Match TCR <-> MHC + peptide antigen.
+        """
+        # Get all T-cell receptor-like objects (TCR, TCRchain), and MHC-like objects.
+        tcell_receptors = [h for h in model if isinstance(h, TCR)] + trchains.child_list
+        mhc_complexes = [h for h in model if isinstance(h, MHC)] + mhchains.child_list
+
+        (
+            model,
+            tcell_receptors,
+            mhc_complexes,
+            agchains,
+            crystal_contacts,
+            antigen_atoms,
+            cdr_atoms,
+            mh_atoms,
+            antigen_hetatoms,
+            antigen_sugars,
+        ) = self._prepare_tcrs_mhcs_and_antigens_for_pairing(
+            model,
+            tcell_receptors,
+            mhc_complexes,
+            agchains,
+            crystal_contacts,
+        )
+
+        model, paired_tr_mh = self._pair_tcr_and_mhc(
+            model=model,
+            tcell_receptors=tcell_receptors,
+            mhc_complexes=mhc_complexes,
+            cdr_atoms=cdr_atoms,
+            mh_atoms=mh_atoms,
+            crystal_contacts=crystal_contacts,
+        )
+
+        if (
+            self.include_symmetry_mates
+            and len(paired_tr_mh) != len(tcell_receptors)
+            and len(mhc_complexes) > 0
+        ):  # check if all TCRs have been paired if MHC is present.
+            # try searching for symmetry mates
+            symmetry_mates = self._generate_symmetry_mates()
+            mhc_complexes.extend([m for t in symmetry_mates for m in t.get_MHCs()])
+
+            (
+                model,
+                tcell_receptors,
+                mhc_complexes,
+                agchains,
+                crystal_contacts,
+                antigen_atoms,
+                cdr_atoms,
+                mh_atoms,
+                antigen_hetatoms,
+                antigen_sugars,
+            ) = self._prepare_tcrs_mhcs_and_antigens_for_pairing(
+                model,
+                tcell_receptors,
+                mhc_complexes,
+                agchains,
+                crystal_contacts,
+            )
+            model, paired_tr_mh = self._pair_tcr_and_mhc(
+                model,
+                tcell_receptors,
+                mhc_complexes,
+                cdr_atoms,
+                mh_atoms,
+                crystal_contacts,
+                already_paired_tr_mh=paired_tr_mh,
+            )
+
+    def _generate_symmetry_mates(self):
+        from .utils.symmetry_mates import (
+            get_symmetry_mates,
+        )  # import here to avoid circular import
+
+        return get_symmetry_mates(self.current_file)
 
     def _protein_peptide_pass(
         self, model, complexes, receptor_atoms, antigen_atoms, crystal_contacts=[]

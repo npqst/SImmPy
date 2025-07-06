@@ -11,7 +11,7 @@ class TestTCRMethods(unittest.TestCase):
         from stcrpy import fetch_TCRs
 
         tcrs = fetch_TCRs("6eqa")
-        self.assertIsInstance(tcr[0], stcrpy.tcr_processing.abTCR)
+        self.assertIsInstance(tcrs[0], stcrpy.tcr_processing.abTCR)
 
         with self.assertWarns(UserWarning):
             non_tcr = fetch_TCRs("8zt4")
