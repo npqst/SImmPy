@@ -17,7 +17,8 @@ class TestTCRFormats(unittest.TestCase):
 
         haddock_formatter = tcr_haddock.HADDOCKFormatter("./test_files/out/haddock/")
         for tcr in tcrs:
-            haddock_formatter.tcr_to_haddock(tcr)
+            if tcr is not None:
+                haddock_formatter.tcr_to_haddock(tcr)
 
     def test_pMHC_to_haddock(self):
         import stcrpy
@@ -33,7 +34,8 @@ class TestTCRFormats(unittest.TestCase):
         )
         for tcr in tcrs:
             if (
-                len(tcr.get_MHC()) > 0
+                tcr is not None
+                and len(tcr.get_MHC()) > 0
                 and len(tcr.antigen) > 0
                 and isinstance(tcr.antigen[0], stcrpy.tcr_processing.AGchain.AGchain)
             ):

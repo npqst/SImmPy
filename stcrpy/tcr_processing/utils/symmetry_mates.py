@@ -7,7 +7,13 @@ from ..TCRParser import TCRParser
 
 
 def get_symmetry_mates(filename):
-    from pymol import cmd
+    try:
+        from pymol import cmd
+    except ModuleNotFoundError:
+        warnings.warn(
+            "Pymol not installed - please install pymol to enabe symmetry mate TCR parsing. "
+        )
+        return []
 
     cmd.load(filename)
     obj_name = cmd.get_object_list()[0]
