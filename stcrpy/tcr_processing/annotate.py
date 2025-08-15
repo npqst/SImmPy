@@ -45,7 +45,12 @@ def call_anarci(
     Returns:
         numbering, chain type, germline information
     """
-    from anarci import number as anarci_number
+    try:
+        from anarci import number as anarci_number
+    except ImportError as e:
+        f"""ANARCI import failed, is ANARCI installed and built? \nInstall ANARCI MHC with: \npip install anarci-mhc \n
+Once installed, build the HMMs with: \nANARCI --build_models. \nError raised was {e}"""
+        raise e
 
     numbering, chain_type, germline_info = anarci_number(
         seq, allow=allow, assign_germline=True
