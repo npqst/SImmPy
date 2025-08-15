@@ -1162,6 +1162,7 @@ class TCRParser(PDBParser, MMCIFParser):
             )
 
     def _generate_symmetry_mates(self):
+        print("Generating symmetry mates to pair antigens.")
         from .utils.symmetry_mates import (
             get_symmetry_mates,
         )  # import here to avoid circular import

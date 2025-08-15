@@ -62,6 +62,11 @@ def get_symmetry_mates(filename):
                     f"{obj_name}_symmetry_{i}", fn, include_symmetry_mates=False
                 )
                 tcr_symmetry_mates.append(symmetry_mate)
+
+    # clean up the pymol cmd space
+    for obj in cmd.get_object_list():
+        cmd.delete(obj)
+    del cmd
     return tcr_symmetry_mates
 
 
