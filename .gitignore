@@ -22,3 +22,4 @@ test/test_files/out/haddock/*/*
 test/test_files/out/haddock/*/*
 test/test_files/out/haddock/** */
 test/test_files/** */
+test/test_files
