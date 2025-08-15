@@ -27,16 +27,38 @@ Under review, please cite:
 ```
 pip install stcrpy
 pip install plip
-conda install -c conda-forge pymol-open-source  numpy -y
+conda install pymol-open-source -y
 ANARCI --build_models           # this step will take a few minutes
 ```
 
 ## Step by step installation
-We recommend installing STCRpy in a [conda](https://www.anaconda.com/docs/getting-started/miniconda/install#macos-linux-installation) (or [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html)) environment using python 3.9 to 3.12: 
+We recommend installing STCRpy in a [conda](https://www.anaconda.com/docs/getting-started/miniconda/install#macos-linux-installation) (or [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html)) environment using python 3.9 to 3.12. You can also use a python virtual environment if you do not need pymol visualisations. 
+
+<details> <summary>conda</summary>
+
 ```
 conda create -n stcrpy_env python==3.12 -y
 conda activate stcrpy_env
 ```
+
+</details>
+<details> <summary>mamba</summary>
+
+```
+mamba create -n stcrpy_env python==3.12 -y
+mamba activate stcrpy_env
+```
+
+</details>
+<details> <summary>venv</summary>
+
+```
+python -m venv stcrpy_env
+source stcrpy_env/bin/activate
+```
+
+</details>
+
 
 The core functionality of STCRpy can be installed as follows:
 ```
@@ -55,7 +77,7 @@ pip install plip
 
 To enable pymol visualisations, install pymol open source locally within the environment. Unfortunately, pymol currently needs to be installed even if you already have a pymol version. Be sure to install pymol within a managed conda (or mamba) environment to prevent interference with any existing versions. 
 ```
-conda install -c conda-forge pymol-open-source -y
+conda install pymol-open-source -y
 ```
 
 To generate pytorch and pytorch-geometric compatible datasets (see the [pytorch docs](https://pytorch.org/get-started/locally/) for hardware specific instructions): 
@@ -172,6 +194,20 @@ from stcrpy.tcr_metrics.tcr_dockq import TCRDockQ
 
 dockq_calculator = TCRDockQ()               # by default this will merge the TCR and pMHC chains and calculate DockQ of the complete TCR:pMHC interface. To calculate DockQ scores per chain, use TCR_pMHC_interface=False
 dockq_results = dockq_calculator.tcr_dockq(tcr, reference_tcr, save_merged_complex=False)           # to investigate the merged TCR:pMHC structure set save_merged_complex=True 
+
+```
+
+
+# Symmetry mate handling
+Some TCR:pMHC crystals are formed of repeating cell units in which the TCR and the antigen do not directly contact. 
+STCRpy generates symmetry mates in these cases to pair pMHC with TCRs in the structure. 
+Note that symmetry mate generation requires pymol to be installed. By default, symmetry mate generation is enabled, however, it can be toggled by setting: 
+`include_symmetry_mates=False` in `get_tcr_structure`. 
+
+## Example: 
+```
+tcr_6ulr_paired_antigen = stcrpy.fetch_TCRs("6ulr")
+tcr_6ulr_no_antigen = stcrpy.fetch_TCRs("6ulr", include_symmetry_mates=False)       # does not generate symmetry mates
 
 ```
 

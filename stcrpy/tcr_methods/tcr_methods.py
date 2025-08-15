@@ -7,19 +7,19 @@ from ..tcr_processing.TCRParser import TCRParser
 from .tcr_batch_operations import batch_load_TCRs, batch_yield_TCRs
 
 
-def load_TCR(tcr_structure_file, tcr_id=None):
+def load_TCR(tcr_structure_file, tcr_id=None, **kwargs):
     tcr_parser = TCRParser()
     if tcr_id is None:
         tcr_id = tcr_structure_file.split("/")[-1].split(".")[0]
     tcr_structure = list(
-        tcr_parser.get_tcr_structure(tcr_id, tcr_structure_file).get_TCRs()
+        tcr_parser.get_tcr_structure(tcr_id, tcr_structure_file, **kwargs).get_TCRs()
     )
     if len(tcr_structure) == 1:
         return tcr_structure[0]
     return tcr_structure
 
 
-def load_TCRs(tcr_structure_files, tcr_ids=None):
+def load_TCRs(tcr_structure_files, tcr_ids=None, **kwargs):
     tcr_parser = TCRParser()
     if isinstance(tcr_structure_files, str):  # loading single file
         tcr_id = tcr_structure_files.split("/")[-1].split(".")[
@@ -30,7 +30,9 @@ def load_TCRs(tcr_structure_files, tcr_ids=None):
                 warnings.warn(f"TCR ID: {tcr_ids} for a single TCR should be type str.")
             tcr_id = tcr_ids
 
-        tcr_structure = tcr_parser.get_tcr_structure(tcr_id, tcr_structure_files)
+        tcr_structure = tcr_parser.get_tcr_structure(
+            tcr_id, tcr_structure_files, **kwargs
+        )
         return list(tcr_structure.get_TCRs())
 
     if len(tcr_structure_files) > 10:
@@ -40,15 +42,15 @@ def load_TCRs(tcr_structure_files, tcr_ids=None):
 
     if tcr_ids is not None:
         if len(tcr_structure_files) == len(tcr_ids):
-            return batch_load_TCRs(dict(zip(tcr_ids, tcr_structure_files)))
+            return batch_load_TCRs(dict(zip(tcr_ids, tcr_structure_files)), **kwargs)
         else:
             warnings.warn(
                 f"Length of TCR IDs {len(tcr_ids)} does not match length of files {len(tcr_structure_files)}. TCR IDs reverted to default."
             )
-    return batch_load_TCRs(tcr_structure_files)
+    return batch_load_TCRs(tcr_structure_files, **kwargs)
 
 
-def yield_TCRs(tcr_structure_files, tcr_ids=None):
+def yield_TCRs(tcr_structure_files, tcr_ids=None, **kwargs):
     tcr_parser = TCRParser()
     if isinstance(tcr_structure_files, str):  # loading single file
         tcr_id = tcr_structure_files.split("/")[-1].split(".")[
@@ -59,20 +61,22 @@ def yield_TCRs(tcr_structure_files, tcr_ids=None):
                 warnings.warn(f"TCR ID: {tcr_ids} for a single TCR should be type str.")
             tcr_id = tcr_ids
 
-        tcr_structure = tcr_parser.get_tcr_structure(tcr_id, tcr_structure_files)
+        tcr_structure = tcr_parser.get_tcr_structure(
+            tcr_id, tcr_structure_files, **kwargs
+        )
         return list(tcr_structure.get_TCRs())
 
     if tcr_ids is not None:
         if len(tcr_structure_files) == len(tcr_ids):
-            return batch_yield_TCRs(dict(zip(tcr_ids, tcr_structure_files)))
+            return batch_yield_TCRs(dict(zip(tcr_ids, tcr_structure_files)), **kwargs)
         else:
             warnings.warn(
                 f"Length of TCR IDs {len(tcr_ids)} does not match length of files {len(tcr_structure_files)}. TCR IDs reverted to default."
             )
-    return batch_yield_TCRs(tcr_structure_files)
+    return batch_yield_TCRs(tcr_structure_files, **kwargs)
 
 
-def fetch_TCRs(pdb_id: str) -> list[TCR]:
+def fetch_TCRs(pdb_id: str, **kwargs) -> list[TCR]:
     """
     Fetches and parses a T-cell receptor (TCR) structure from the STCRDab or RCSB PDB databases.
 
@@ -138,7 +142,7 @@ def fetch_TCRs(pdb_id: str) -> list[TCR]:
             print("Failed to download file")
 
     tcr_parser = TCRParser()
-    tcrs = list(tcr_parser.get_tcr_structure(pdb_id, filename).get_TCRs())
+    tcrs = list(tcr_parser.get_tcr_structure(pdb_id, filename, **kwargs).get_TCRs())
     os.remove(filename)
 
     if len(tcrs) == 0:

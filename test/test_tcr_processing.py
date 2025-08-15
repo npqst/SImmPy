@@ -302,3 +302,9 @@ class TestgdTCR(unittest.TestCase):
         self.assertEqual(tcr.get_VD().id, 'D')
         self.assertEqual(tcr.VG, 'E')
         self.assertEqual(tcr.get_VG().id, 'E')
+
+
+class TestSymmetryMates(unittest.TestCase):
+    def test_symmetry_mates(self):
+        tcrs = stcrpy.fetch_TCRs("6ulr")
+        assert len(tcrs[0].get_MHC()) == 1

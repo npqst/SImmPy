@@ -19,20 +19,24 @@ class TCRBatchOperator:
     def _load_geometry_filter(self):
         self._geometry_filter = DockingGeometryFilter()
 
-    def tcrs_from_file_list(self, file_list):
+    def tcrs_from_file_list(self, file_list, **kwargs):
         for file in file_list:
             tcr_id = file.split("/")[-1].split(".")[0]
             try:
-                for tcr in self._tcr_parser.get_tcr_structure(tcr_id, file).get_TCRs():
+                for tcr in self._tcr_parser.get_tcr_structure(
+                    tcr_id, file, **kwargs
+                ).get_TCRs():
                     yield tcr
             except Exception as e:
                 warnings.warn(f"Loading {file} failed with error {str(e)}")
                 yield None
 
-    def tcrs_from_file_dict(self, file_dict):
+    def tcrs_from_file_dict(self, file_dict, **kwargs):
         for tcr_id, file in file_dict.items():
             try:
-                for tcr in self._tcr_parser.get_tcr_structure(tcr_id, file).get_TCRs():
+                for tcr in self._tcr_parser.get_tcr_structure(
+                    tcr_id, file, **kwargs
+                ).get_TCRs():
                     yield tcr_id, tcr
             except Exception as e:
                 warnings.warn(f"Loading {tcr_id}: {file} failed with error {str(e)}")
@@ -167,18 +171,18 @@ class TCRBatchOperator:
         return germlines_and_alleles_df, geometries_df, interactions_df
 
 
-def batch_load_TCRs(tcr_files):
+def batch_load_TCRs(tcr_files, **kwargs):
     if isinstance(tcr_files, dict):
-        return dict(TCRBatchOperator().tcrs_from_file_dict(tcr_files))
+        return dict(TCRBatchOperator().tcrs_from_file_dict(tcr_files), **kwargs)
     else:
-        return list(TCRBatchOperator().tcrs_from_file_list(tcr_files))
+        return list(TCRBatchOperator().tcrs_from_file_list(tcr_files), **kwargs)
 
 
-def batch_yield_TCRs(tcr_files):
+def batch_yield_TCRs(tcr_files, **kwargs):
     if isinstance(tcr_files, dict):
-        return TCRBatchOperator().tcrs_from_file_dict(tcr_files)
+        return TCRBatchOperator().tcrs_from_file_dict(tcr_files, **kwargs)
     else:
-        return TCRBatchOperator().tcrs_from_file_list(tcr_files)
+        return TCRBatchOperator().tcrs_from_file_list(tcr_files, **kwargs)
 
 
 def get_TCR_interactions(tcr_files, renumber=True, save_as_csv=None):
