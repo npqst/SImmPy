@@ -72,9 +72,8 @@ class TCR(Entity):
             for m in shallow.MHC:
                 m.tcr = [t.copy(copy_siblings=False) if t.id != shallow.id else shallow for t in m.tcr]
                 m.antigen = [ag.copy() if ag.id not in [a.id for a in shallow.antigen] else [a for a in shallow.antigen if a.id==ag.id][0] for ag in m.antigen]
-        
-        return shallow
 
+        return shallow
 
     def get_antigen(self):
         """
@@ -429,6 +428,11 @@ class TCR(Entity):
 
     def profile_MHC_interactions(self):
         raise NotImplementedError
+
+    def get_TCR_angles(self):
+        from ..tcr_geometry.TCRAngle import TCRAngle
+
+        return TCRAngle().calculate_angles(self)
 
     def crop(self, *, crop_mhc: bool = True, remove_het_atoms: bool = True) -> None:
         """Crop TCR to variable domain and optionally crop MHC to antigen binding domain.

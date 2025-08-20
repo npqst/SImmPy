@@ -197,6 +197,37 @@ dockq_results = dockq_calculator.tcr_dockq(tcr, reference_tcr, save_merged_compl
 
 ```
 
+### Torsion angles and internal coordinates
+STCRpy builds upon the Biopython PDB module, and you can calculate the internal coordinates, such as backbone torsion angles, using the [`internal_coordinates` function](https://biopython.org/docs/dev/api/Bio.PDB.internal_coords.html).
+
+```
+# internal coordinate calculations should be made per chain
+for c in tcr.get_chains():
+    c.atom_to_internal_coordinates()            # calculate the internal coordinates 
+
+# internal coordinates can be accessed per residue: 
+res = next(tcr.get_residues())
+res.internal_coord.get_angle("psi")         # retrieve angles via angle keys
+```
+
+### Domain angles between TCR chains
+STCRpy can be used to calculate the geometry and angles between the TCR variable domains of abTCRs and gdTCRs. This follows the ABangle implementation [(Dunbar et al. 2013)](https://academic.oup.com/peds/article/26/10/611/1509255).
+```
+tcr.get_TCR_angles()
+
+# returns dictionary of TCR domain angles and measurements.
+# For example: 
+# {
+#    'BA': -56.72234454750631,
+#    'BC1': 122.55277240895967,
+#    'AC1': 73.96532018128327,
+#    'BC2': 82.63524566165464,
+#    'AC2': 99.60327202896609,
+#    'dc': np.float64(15.606353954437227)
+# }
+
+```
+
 
 # Symmetry mate handling
 Some TCR:pMHC crystals are formed of repeating cell units in which the TCR and the antigen do not directly contact. 
@@ -213,5 +244,15 @@ tcr_6ulr_no_antigen = stcrpy.fetch_TCRs("6ulr", include_symmetry_mates=False)   
 
 
 
+# Limitations
+
+## Connected peptide chains
+STCRpy is currently not configured to handle cases where the antigen peptide is connected to the TCR or MHC chain - this is primarily because the parsing pipeline operates on chain objects and it can be tricky to consistently separate the peptide segment from the remainder of the TCR chain. A known case is PDB code 6MNO. 
+
+## Gamma-Delta TCR geometry
+STCRpy supports gamma-delta TCR parsing, interaction profiling and visusalisation, but is not currently configured to calculate gd-TCR geometry.
+
+## MHC Class II geometry scoring
+STCRpy can be used to calculate and characterise the geometries of TCRs to MHC class II antigen, however, due to the smaller number of complexes we have not fit parametric distributions to the geometry features, which means it is not possible to calculate a geometry score.
 
 

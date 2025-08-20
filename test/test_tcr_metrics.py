@@ -145,3 +145,20 @@ class TestTCRMetrics(unittest.TestCase):
         self.assertAlmostEqual(dockq_results[1]['best_result']['TM']['fnonnat'], 0.195, places=3)
         self.assertAlmostEqual(dockq_results[1]['best_result']['TM']['F1'], 0.873, places=3)
         self.assertAlmostEqual(dockq_results[1]['best_result']['TM']['clashes'], 0, places=3)
+
+    def test_TCRAngles(self):
+        ab_tcr = stcrpy.fetch_TCRs("8gvb")[0]
+        from stcrpy.tcr_geometry.TCRAngle import TCRAngle
+
+        tcr_angle = TCRAngle()
+        angles = tcr_angle.calculate_angles(ab_tcr)
+
+        assert ab_tcr.get_TCR_angles() == angles
+
+        gd_tcr = stcrpy.fetch_TCRs("8JBV")[0]
+        from stcrpy.tcr_geometry.TCRAngle import TCRAngle
+
+        tcr_angle = TCRAngle()
+        angles = tcr_angle.calculate_angles(gd_tcr)
+
+        assert gd_tcr.get_TCR_angles() == angles
