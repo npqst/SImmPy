@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stcrpy"
-version = "1.0.3"
+version = "1.0.5"
 description = "Set of methods to parse, annotate, and calculate features of TCR structures"
 readme = "README.md"
 license-files = [
@@ -45,4 +45,4 @@ where = ["."]
 exclude = ["test", "test.*"]
 
 [tool.setuptools.package-data]
-stcrpy = ["tcr_geometry/reference_data/*.pdb"]
+stcrpy = ["tcr_geometry/reference_data/*", ]
