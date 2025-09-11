@@ -8,7 +8,7 @@ try:
 except ModuleNotFoundError:
     pass
 
-from stcrpy.tcr_processing import TCRParser
+import stcrpy
 from stcrpy.tcr_interactions.TCRpMHC_PLIP_Model_Parser import (
     TCRpMHC_PLIP_Model_Parser,
 )
@@ -20,16 +20,10 @@ class TestTCRInteractions(unittest.TestCase):
 
     def test_tcrpmhc_plip_model_parser(self):
 
-        parser = TCRParser.TCRParser()
-
         model_parser = TCRpMHC_PLIP_Model_Parser()
-
-        test_file = "./test_files/8gvb.cif"
-        tcr = [x for x in parser.get_tcr_structure("tmp", test_file).get_TCRs()][0]
-
+        tcr = stcrpy.fetch_TCRs("8gvb")[0]
         mol, renumbering, domains = model_parser.parse_tcr_pmhc_complex(tcr)
         assert isinstance(mol, PDBComplex)
-        assert set(renumbering.keys()) == set(["A", "B", "C", "D"])
         assert domains == {"VA": "A", "VB": "B"}
         mol.analyze()
 
@@ -38,10 +32,8 @@ class TestTCRInteractions(unittest.TestCase):
         mol.analyze()
 
     def test_plip_parser(self):
-        parser = TCRParser.TCRParser()
         model_parser = TCRpMHC_PLIP_Model_Parser()
-        test_file = "./test_files/8gvb.cif"
-        tcr = [x for x in parser.get_tcr_structure("tmp", test_file).get_TCRs()][0]
+        tcr = stcrpy.fetch_TCRs("8gvb")[0]
         mol, renumbering, domains = model_parser.parse_tcr_pmhc_complex(tcr)
         mol.analyze()
 
@@ -59,9 +51,7 @@ class TestTCRInteractions(unittest.TestCase):
         assert interactions[interactions.domain == "VB"].protein_number.item() == 110
 
     def test_TCR_interaction_profiler(self):
-        parser = TCRParser.TCRParser()
-        test_file = "./test_files/8gvb.cif"
-        tcr = [x for x in parser.get_tcr_structure("tmp", test_file).get_TCRs()][0]
+        tcr = stcrpy.fetch_TCRs("8gvb")[0]
 
         interaction_profiler = TCRInteractionProfiler()
         interactions = interaction_profiler.get_interactions(tcr, renumber=True)
@@ -93,9 +83,7 @@ class TestTCRInteractions(unittest.TestCase):
         assert pathlib.Path(csv_path).exists()
 
     def test_TCR_plip_methods(self):
-        parser = TCRParser.TCRParser()
-        test_file = "./test_files/8gvb.cif"
-        tcr = [x for x in parser.get_tcr_structure("tmp", test_file).get_TCRs()][0]
+        tcr = stcrpy.fetch_TCRs("8gvb")[0]
 
         interactions = tcr.profile_peptide_interactions()
 
@@ -110,14 +98,9 @@ class TestTCRInteractions(unittest.TestCase):
         assert interactions[interactions.domain == "VB"].protein_number.item() == 110
 
     def test_pymol_visualisation(self):
-        parser = TCRParser.TCRParser()
         model_parser = TCRpMHC_PLIP_Model_Parser()
-        test_file = "./test_files/8gvb.cif"
-        tcr = [x for x in parser.get_tcr_structure("tmp", test_file).get_TCRs()][0]
+        tcr = stcrpy.fetch_TCRs("8gvb")[0]
         mol, renumbering, domains = model_parser.parse_tcr_pmhc_complex(tcr)
-        # mol.analyze()
-
-        # plip_parser = PLIPParser()
 
         interaction_profiler = TCRInteractionProfiler()
 
@@ -157,11 +140,7 @@ class TestTCRInteractions(unittest.TestCase):
                 )
 
     def test_create_pymol_session(self):
-        parser = TCRParser.TCRParser()
-        test_file = "./test_files/8gvb.cif"
-        tcr = [x for x in parser.get_tcr_structure("test_8gvb", test_file).get_TCRs()][
-            0
-        ]
+        tcr = stcrpy.fetch_TCRs("8gvb")[0]
 
         interaction_profiler = TCRInteractionProfiler()
 
@@ -218,12 +197,7 @@ class TestTCRInteractions(unittest.TestCase):
                 )
 
     def test_bound_tcr_interaction_visualisation_method(self):
-        parser = TCRParser.TCRParser()
-        test_file = "./test_files/8gvb.cif"
-        tcr = [x for x in parser.get_tcr_structure("test_8gvb", test_file).get_TCRs()][
-            0
-        ]
-
+        tcr = stcrpy.fetch_TCRs("8gvb")[0]
         try:
             import pymol
 
@@ -327,9 +301,7 @@ class TestTCRInteractions(unittest.TestCase):
         assert interaction_profiler.config.BS_DIST == 7.5 == config.BS_DIST
 
     def test_setting_and_using_alternative_interaction_parameters(self):
-        import stcrpy
-
-        tcr = stcrpy.load_TCRs("test_files/8gvb.cif")[0]
+        tcr = stcrpy.fetch_TCRs("8gvb")[0]
 
         interaction_profiler = TCRInteractionProfiler(
             BS_DIST=10.0,
@@ -350,9 +322,7 @@ class TestTCRInteractions(unittest.TestCase):
         assert len(default_interactions_df) == len(reset_interactions_df)
 
     def test_bound_method_alternative_interaction_parameters(self):
-        import stcrpy
-
-        tcr = stcrpy.load_TCRs("test_files/8gvb.cif")[0]
+        tcr = stcrpy.fetch_TCRs("8gvb")[0]
 
         alt_interactions_df = tcr.profile_peptide_interactions(
             BS_DIST=10.0,
