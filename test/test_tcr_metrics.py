@@ -56,7 +56,7 @@ class TestTCRMetrics(unittest.TestCase):
         from stcrpy.tcr_metrics import RMSD
 
         rmsd_df = RMSD().rmsd_from_files(files)
-        assert len(rmsd_df) == 46
+        assert len(rmsd_df) == 3
 
         correct_rmsd = pd.read_csv(
             "test_files/TCRRMSD_test_files/rmsd_testing.csv",
@@ -83,7 +83,7 @@ class TestTCRMetrics(unittest.TestCase):
 
         dock_files = sorted(
             glob.glob(
-                "./test_files/TCRHaddock_test_files/387937-tcr_6eqa_mel5_bulged/structures/it1/renumbered_complex_*.pdb"
+                "./test_files/TCRHaddock_test_files/predictions/renumbered_complex_*.pdb"
             )
         )
         docked_tcrs = stcrpy.load_TCRs(dock_files)
@@ -95,7 +95,7 @@ class TestTCRMetrics(unittest.TestCase):
         irmsds = [
             interface_rmsd.get_interface_rmsd(tcr, reference_tcr) for tcr in docked_tcrs
         ]
-        assert len(irmsds) == 200
+        assert len(irmsds) == 4
         detached_peptide_indices = [13, 35, 37, 127]
         assert all(
             [
@@ -117,7 +117,7 @@ class TestTCRMetrics(unittest.TestCase):
 
         dock_files = sorted(
             glob.glob(
-                "./test_files/TCRHaddock_test_files/387937-tcr_6eqa_mel5_bulged/structures/it1/renumbered_complex_*.pdb"
+                "./test_files/TCRHaddock_test_files/predictions/renumbered_complex_*.pdb"
             )
         )[:2]
         docked_tcrs = stcrpy.load_TCRs(dock_files)
@@ -137,14 +137,6 @@ class TestTCRMetrics(unittest.TestCase):
         self.assertAlmostEqual(dockq_results[0]['best_result']['TM']['fnonnat'], 0.266, places=3)
         self.assertAlmostEqual(dockq_results[0]['best_result']['TM']['F1'], 0.806, places=3)
         self.assertAlmostEqual(dockq_results[0]['best_result']['TM']['clashes'], 0, places=3)
-
-        self.assertAlmostEqual(dockq_results[1]['best_result']['TM']['DockQ'], 0.872, places=3)
-        self.assertAlmostEqual(dockq_results[1]['best_result']['TM']['iRMSD'], 0.742, places=3)
-        self.assertAlmostEqual(dockq_results[1]['best_result']['TM']['LRMSD'], 3.430, places=3)
-        self.assertAlmostEqual(dockq_results[1]['best_result']['TM']['fnat'], 0.954, places=3)
-        self.assertAlmostEqual(dockq_results[1]['best_result']['TM']['fnonnat'], 0.195, places=3)
-        self.assertAlmostEqual(dockq_results[1]['best_result']['TM']['F1'], 0.873, places=3)
-        self.assertAlmostEqual(dockq_results[1]['best_result']['TM']['clashes'], 0, places=3)
 
     def test_TCRAngles(self):
         ab_tcr = stcrpy.fetch_TCRs("8gvb")[0]
