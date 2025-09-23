@@ -35,33 +35,39 @@ def get_symmetry_mates(filename):
     tcp = TCRParser()
     pdp = PDBParser(QUIET=True)
     pdbio = PDBIO()
-    with tempfile.TemporaryDirectory() as tmpdir:
-        for i, obj in enumerate(cmd.get_object_list()):
-            fn = os.path.join(tmpdir, f"{obj_name}_symmetry_mate_{i}.pdb")
-            cmd.save(fn, obj)
-            symmetry_mate = pdp.get_structure("tmp", fn)
-            if i == 0:
-                chain_ids = generate_chain_id_list(
-                    len(list(symmetry_mate.get_chains()) * len(cmd.get_object_list()))
-                )
-                for c in symmetry_mate.get_chains():
-                    chain_ids.remove(
-                        c.id
-                    )  # remove all chain ids of the original structure
-            if i > 0:  # Skip the original structure
-                # rename chain ids, this cannot be done directly to TCR structure without breaking the TCR and MHC chain assignments.
-                for chain in reversed(list(symmetry_mate.get_chains())):
-                    symmetry_mate[0].detach_child(chain.id)
-                    new_id = chain_ids.pop(0)
-                    chain.id = new_id
-                    symmetry_mate[0].add(chain)
-                pdbio.set_structure(symmetry_mate)
-                pdbio.save(fn)
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for i, obj in enumerate(cmd.get_object_list()):
+                fn = os.path.join(tmpdir, f"{obj_name}_symmetry_mate_{i}.pdb")
+                cmd.save(fn, obj)
+                symmetry_mate = pdp.get_structure("tmp", fn)
+                if i == 0:
+                    chain_ids = generate_chain_id_list(
+                        len(
+                            list(symmetry_mate.get_chains())
+                            * len(cmd.get_object_list())
+                        )
+                    )
+                    for c in symmetry_mate.get_chains():
+                        chain_ids.remove(
+                            c.id
+                        )  # remove all chain ids of the original structure
+                if i > 0:  # Skip the original structure
+                    # rename chain ids, this cannot be done directly to TCR structure without breaking the TCR and MHC chain assignments.
+                    for chain in reversed(list(symmetry_mate.get_chains())):
+                        symmetry_mate[0].detach_child(chain.id)
+                        new_id = chain_ids.pop(0)
+                        chain.id = new_id
+                        symmetry_mate[0].add(chain)
+                    pdbio.set_structure(symmetry_mate)
+                    pdbio.save(fn)
 
-                symmetry_mate = tcp.get_tcr_structure(
-                    f"{obj_name}_symmetry_{i}", fn, include_symmetry_mates=False
-                )
-                tcr_symmetry_mates.append(symmetry_mate)
+                    symmetry_mate = tcp.get_tcr_structure(
+                        f"{obj_name}_symmetry_{i}", fn, include_symmetry_mates=False
+                    )
+                    tcr_symmetry_mates.append(symmetry_mate)
+    except Exception as e:
+        warnings.warn(f"Symmetry mate generation failed with: {str(e)}")
 
     # clean up the pymol cmd space
     for obj in cmd.get_object_list():
