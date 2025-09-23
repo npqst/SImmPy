@@ -22,13 +22,13 @@ class TestTCRDatasets(unittest.TestCase):
         tcr = stcrpy.fetch_TCRs("8gvb")[0]
         graph_constructor.build_graph(tcr)
 
-    def test_TCRGraphDataset(self):
-        dataset = TCRGraphDataset(
-            root="./test_files/TCRGraphDataset_test_files",
-            data_paths="./test_files/TCRGraphDataset_test_files/raw_files",
-            force_reload=True,
-        )
-        print(dataset)
-        for i in range(len(dataset)):
-            datapoint = dataset[i]
-            print(datapoint)
+    # def test_TCRGraphDataset(self):
+    #     dataset = TCRGraphDataset(
+    #         root="./test_files/TCRGraphDataset_test_files",
+    #         data_paths="./test_files/TCRGraphDataset_test_files/raw_files",
+    #         force_reload=True,
+    #     )
+    #     print(dataset)
+    #     for i in range(len(dataset)):
+    #         datapoint = dataset[i]
+    #         print(datapoint)

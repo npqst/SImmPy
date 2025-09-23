@@ -6,7 +6,7 @@ class TestTCRSequenceOperations(unittest.TestCase):
     def test_get_germlines(self):
         import stcrpy
 
-        tcr = stcrpy.load_TCRs("test_files/8gvb.cif")[0]
+        tcr = stcrpy.fetch_TCRs("8gvb")[0]
 
         germline_info = tcr.get_germline_assignments()
 
