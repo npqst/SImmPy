@@ -1130,9 +1130,11 @@ class TCRParser(PDBParser, MMCIFParser):
             and len(mhc_complexes) > 0
         ):  # check if all TCRs have been paired if MHC is present.
             # try searching for symmetry mates
-            symmetry_mates = self._generate_symmetry_mates()
-            mhc_complexes.extend([m for t in symmetry_mates for m in t.get_MHCs()])
-
+            try:
+                symmetry_mates = self._generate_symmetry_mates()
+                mhc_complexes.extend([m for t in symmetry_mates for m in t.get_MHCs()])
+            except Exception as e:
+                warnings.warn(f"Symmetry mate generation failed with: {str(e)}")
             (
                 model,
                 tcell_receptors,

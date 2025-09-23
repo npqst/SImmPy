@@ -8,6 +8,7 @@ from ..tcr_processing.TCRParser import TCRParser
 try:
     import plip
     from plip.basic.remote import VisualizerData
+    from plip.visualization.visualize import visualize_in_pymol
 
 except ModuleNotFoundError as e:
     if "pymol" in str(e):
