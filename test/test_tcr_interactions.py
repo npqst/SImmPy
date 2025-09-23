@@ -106,7 +106,7 @@ class TestTCRInteractions(unittest.TestCase):
 
         # test if plip visualisations are generated
 
-        pymol_plip_session_name = "./ATOM1NGLYB123_PROTEIN_UNL_Z_1.pse"
+        pymol_plip_session_name = "./ATOM1NGLYB323_PROTEIN_UNL_Z_1.pse"
         if os.path.exists(pymol_plip_session_name):
             os.remove(
                 pymol_plip_session_name
@@ -121,6 +121,7 @@ class TestTCRInteractions(unittest.TestCase):
                 pymol.CmdException
             ):  # sometimes function needs to run twice? Probably due to pymol loading and object selection latency
                 interaction_profiler._visualize_interactions(mol)
+
             path = pathlib.Path(pymol_plip_session_name)
             assert path.is_file()
             os.remove(pymol_plip_session_name)  # cleans up after test
