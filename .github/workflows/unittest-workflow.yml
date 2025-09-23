@@ -45,7 +45,7 @@ jobs:
         shell: bash -el {0}
         run: |
           conda activate env
-          conda install -c conda-forge pymol-open-source 
+          conda install -c conda-forge pymol-open-source numpy==1.26.4      # freeze numpy to prevent dockQ incompatibility
           conda list
           pip install '.[ml_datasets]'
       - name: Test import
