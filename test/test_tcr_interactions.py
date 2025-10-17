@@ -230,16 +230,14 @@ class TestTCRInteractions(unittest.TestCase):
             )
             assert pathlib.Path(saved_session).exists()
 
-    # def test_interaction_heatmap(self):           ## matplotlib pyplot kills vscode unit test suite
-    #     parser = TCRParser.TCRParser()
-    #     test_file = "./test_files/8gvb.cif"
-    #     tcr = [x for x in parser.get_tcr_structure("test_8gvb", test_file).get_TCRs()][
-    #         0
-    #     ]
+    # def test_interaction_heatmap(
+    #     self,
+    # ):  ## matplotlib pyplot kills vscode unit test suite
+    #     tcr = stcrpy.fetch_TCRs("8gvb")[0]
 
     #     interaction_profiler = TCRInteractionProfiler()
     #     heatmaps = interaction_profiler.get_interaction_heatmap(
-    #         tcr, save_as="./examples/example_8gvb_interaction_heatmap.png"
+    #     tcr, save_as="./examples/example_8gvb_interaction_heatmap.png"
     #     )
 
     def test_set_interaction_parameters(self):

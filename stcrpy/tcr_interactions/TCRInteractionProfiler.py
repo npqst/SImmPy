@@ -414,7 +414,8 @@ class TCRInteractionProfiler:
             heatmap_b[pair[0][1], ligand_number_mapping[int(pair[1][1])]] = (
                 heatmap_b[pair[0][1], ligand_number_mapping[int(pair[1][1])]] + 1
             )
-        ax_beta.imshow(heatmap_b.T, cmap="PuRd")
+
+        im_beta = ax_beta.imshow(heatmap_b.T, cmap="PuRd")
         for i in plot_index:
             ax_beta.axhline(y=i - 0.5, color="blue", linewidth=1)
             ax_beta.axhline(y=i + 0.5, color="blue", linewidth=1)
@@ -427,6 +428,11 @@ class TCRInteractionProfiler:
         else:
             ax_beta.set_xticks([], [], rotation=90)
             ax_beta.set_yticks([], [])
+
+        cbar = fig.colorbar(
+            im_beta, ax=[ax_alpha, ax_beta], orientation="vertical", shrink=0.8
+        )
+        cbar.set_label("Interaction count", rotation=270, labelpad=15)
 
         if save_as is not None:
             fig.savefig(save_as, bbox_inches="tight", dpi=200)
