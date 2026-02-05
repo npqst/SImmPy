@@ -21,7 +21,7 @@ dependencies = [
   "lxml",
   "openbabel-wheel==3.1.1.21",
   "rdkit",
-  "pyhmmer==0.11.4"        # fix pyhmmer version to prevent string encoding bu. TODO:fix this within anarci-mhc directly and redeploy
+  "pyhmmer==0.11.4",        # fix pyhmmer version to prevent string encoding bu. TODO:fix this within anarci-mhc directly and redeploy
   "anarci-mhc",
   "pandas",
   "matplotlib",
