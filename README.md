@@ -15,7 +15,7 @@ Please feel free to reach out with any comments or feedback.
 
 Under review, please cite: 
 
-**Quast, N. , Deane, C., & Raybould, M. (2025). STCRpy: a software suite for TCR:pMHC structure parsing, interaction profiling, and machine learning dataset preparation. BioRxiv. https://doi.org/10.1101/2025.04.25.650667**
+**Quast, N. , Deane, C., & Raybould, M. (2025). STCRpy: a software suite for TCR:pMHC structure parsing, interaction profiling, and machine learning dataset preparation. Bioinformatics. [https://doi.org/10.1093/bioinformatics/btaf566](https://doi.org/10.1093/bioinformatics/btaf566)**
 
 <img src="./stcrpy_main_fig.png" alt="drawing" width="1500"/>
 
