@@ -9,13 +9,22 @@ except ModuleNotFoundError:
     pass
 
 import stcrpy
-from stcrpy.tcr_interactions.TCRpMHC_PLIP_Model_Parser import (
-    TCRpMHC_PLIP_Model_Parser,
-)
-from stcrpy.tcr_interactions.PLIPParser import PLIPParser
-from stcrpy.tcr_interactions.TCRInteractionProfiler import TCRInteractionProfiler
+
+try:
+    import plip
+
+    HAS_PLIP = True
+    from stcrpy.tcr_interactions.TCRpMHC_PLIP_Model_Parser import (
+        TCRpMHC_PLIP_Model_Parser,
+    )
+    from stcrpy.tcr_interactions.PLIPParser import PLIPParser
+    from stcrpy.tcr_interactions.TCRInteractionProfiler import TCRInteractionProfiler
+
+except ImportError:
+    HAS_PLIP = False
 
 
+@unittest.skipUnless(HAS_PLIP, "plip is not installed")
 class TestTCRInteractions(unittest.TestCase):
 
     def test_tcrpmhc_plip_model_parser(self):
